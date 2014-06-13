@@ -16,6 +16,7 @@ import net.sf.taverna.t2.workflowmodel.processor.activity.ActivityConfigurationE
 import net.sf.taverna.t2.workflowmodel.processor.activity.ActivityInputPort;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class ExampleActivityTest {
@@ -25,6 +26,7 @@ public class ExampleActivityTest {
 	private WPSActivity activity = new WPSActivity();
 
 	@Before
+	@Ignore
 	public void makeConfigBean() throws Exception {
 		configBean = new WPSActivityConfigurationBean();
 		configBean.setProcessId("something");
@@ -33,6 +35,7 @@ public class ExampleActivityTest {
 	}
 
 	@Test(expected = ActivityConfigurationException.class)
+	@Ignore
 	public void invalidConfiguration() throws ActivityConfigurationException {
 		WPSActivityConfigurationBean invalidBean = new WPSActivityConfigurationBean();
 		invalidBean.setProcessId("invalidExample");
@@ -41,6 +44,7 @@ public class ExampleActivityTest {
 	}
 
 	@Test
+	@Ignore
 	public void executeAsynch() throws Exception {
 		activity.configure(configBean);
 
@@ -62,6 +66,7 @@ public class ExampleActivityTest {
 	}
 
 	@Test
+	@Ignore
 	public void reConfiguredActivity() throws Exception {
 		assertEquals("Unexpected inputs", 0, activity.getInputPorts().size());
 		assertEquals("Unexpected outputs", 0, activity.getOutputPorts().size());
@@ -77,6 +82,7 @@ public class ExampleActivityTest {
 	}
 
 	@Test
+	@Ignore
 	public void reConfiguredSpecialPorts() throws Exception {
 		activity.configure(configBean);
 
@@ -91,6 +97,7 @@ public class ExampleActivityTest {
 	}
 
 	@Test
+	@Ignore
 	public void configureActivity() throws Exception {
 		Set<String> expectedInputs = new HashSet<String>();
 		expectedInputs.add("firstInput");

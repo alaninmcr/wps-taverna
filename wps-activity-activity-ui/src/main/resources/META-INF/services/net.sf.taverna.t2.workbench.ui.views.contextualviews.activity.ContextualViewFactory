@@ -1,1 +1,1 @@
- net.sf.taverna.t2.wps.wps_activity.ui.view.ExampleActivityContextViewFactory
+ net.sf.taverna.t2.wps.wps_activity.ui.view.WPSActivityContextViewFactory

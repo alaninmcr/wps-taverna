@@ -8,7 +8,7 @@ import net.sf.taverna.t2.workbench.ui.views.contextualviews.activity.ContextualV
 
 import net.sf.taverna.t2.wps.wps_activity.WPSActivity;
 
-public class ExampleActivityContextViewFactory implements
+public class WPSActivityContextViewFactory implements
 		ContextualViewFactory<WPSActivity> {
 
 	public boolean canHandle(Object selection) {
@@ -16,7 +16,7 @@ public class ExampleActivityContextViewFactory implements
 	}
 
 	public List<ContextualView> getViews(WPSActivity selection) {
-		return Arrays.<ContextualView>asList(new ExampleContextualView(selection));
+		return Arrays.<ContextualView>asList(new WPSContextualView(selection));
 	}
 	
 }

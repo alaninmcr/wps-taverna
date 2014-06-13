@@ -7,20 +7,26 @@ import java.util.List;
 
 import javax.swing.Icon;
 
-import org.n52.wps.client.WPSClientException;
-import org.n52.wps.client.WPSClientSession;
-
 import net.opengis.ows.x11.LanguageStringType;
 import net.opengis.wps.x100.CapabilitiesDocument;
 import net.opengis.wps.x100.ProcessBriefType;
+import net.opengis.wps.x100.WSDLDocument.WSDL;
+import net.sf.taverna.t2.activities.wsdl.servicedescriptions.WSDLServiceProvider;
+import net.sf.taverna.t2.activities.wsdl.servicedescriptions.WSDLServiceProviderConfig;
 import net.sf.taverna.t2.servicedescriptions.AbstractConfigurableServiceProvider;
 import net.sf.taverna.t2.servicedescriptions.ConfigurableServiceProvider;
 import net.sf.taverna.t2.servicedescriptions.ServiceDescription;
-import net.sf.taverna.t2.servicedescriptions.ServiceDescriptionProvider;
+import net.sf.taverna.t2.workflowmodel.ConfigurationException;
+
+import org.apache.log4j.Logger;
+import org.n52.wps.client.WPSClientException;
+import org.n52.wps.client.WPSClientSession;
 
 public class WPSServiceProvider extends
 	AbstractConfigurableServiceProvider<WPSServiceProviderConfig> implements
 	ConfigurableServiceProvider<WPSServiceProviderConfig> {
+	
+	private static Logger logger = Logger.getLogger(WPSServiceProvider.class);
 	
 	public WPSServiceProvider() {
 		super(new WPSServiceProviderConfig());
@@ -37,21 +43,34 @@ public class WPSServiceProvider extends
 			FindServiceDescriptionsCallBack callBack) {
 		// Use callback.status() for long-running searches
 		// callBack.status("Resolving example services");
-
-		List<ServiceDescription> results = new ArrayList<ServiceDescription>();
-
-		String urlString = this.getConfiguration().getUri().toString();
 		
+		String urlString = this.getConfiguration().getUri().toString();
+		List<ServiceDescription> results = new ArrayList<ServiceDescription>();
+				
 		WPSClientSession wpsClient = WPSClientSession.getInstance();
 		try {
 
 			wpsClient.connect(urlString);
 		} catch (WPSClientException e) {
-			callBack.fail("Unable to connect to " + this.getConfiguration().getUri(), e);
+			callBack.fail(e.getMessage(), e);
 			return;
 		}
 
 		CapabilitiesDocument capabilities = wpsClient.getWPSCaps(urlString);
+		
+//		WSDL wsdl = capabilities.getCapabilities().getWSDL();
+//		if (wsdl != null) {
+//			String wsdl_location = wsdl.getHref();
+//			WSDLServiceProviderConfig proxyConfig = new WSDLServiceProviderConfig(wsdl_location);
+//			WSDLServiceProvider proxyProvider = new WSDLServiceProvider();
+//			try {
+//				proxyProvider.configure(proxyConfig);
+//				proxyProvider.findServiceDescriptionsAsync(callBack);
+//				return;
+//			} catch (ConfigurationException e) {
+//				logger.error(e);
+//			}			
+//		}
         
         ProcessBriefType[] processList = capabilities.getCapabilities()
                         .getProcessOfferings().getProcessArray();

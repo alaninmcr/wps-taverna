@@ -14,11 +14,11 @@ import net.sf.taverna.t2.wps.wps_activity.WPSActivityConfigurationBean;
 import net.sf.taverna.t2.wps.wps_activity.ui.config.WPSConfigureAction;
 
 @SuppressWarnings("serial")
-public class ExampleContextualView extends ContextualView {
+public class WPSContextualView extends ContextualView {
 	private final WPSActivity activity;
 	private JLabel description = new JLabel("ads");
 
-	public ExampleContextualView(WPSActivity activity) {
+	public WPSContextualView(WPSActivity activity) {
 		this.activity = activity;
 		initView();
 	}
@@ -35,7 +35,7 @@ public class ExampleContextualView extends ContextualView {
 	public String getViewTitle() {
 		WPSActivityConfigurationBean configuration = activity
 				.getConfiguration();
-		return "Example service " + configuration.getProcessId();
+		return "WPS service " + configuration.getProcessId();
 	}
 
 	/**
@@ -45,7 +45,7 @@ public class ExampleContextualView extends ContextualView {
 	public void refreshView() {
 		WPSActivityConfigurationBean configuration = activity
 				.getConfiguration();
-		description.setText("Example service " + configuration.getUri()
+		description.setText("WPS service " + configuration.getUri()
 				+ " - " + configuration.getProcessId());
 		// TODO: Might also show extra service information looked
 		// up dynamically from endpoint/registry

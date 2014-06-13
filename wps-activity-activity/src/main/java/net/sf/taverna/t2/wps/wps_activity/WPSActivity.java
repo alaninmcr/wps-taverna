@@ -1,17 +1,9 @@
 package net.sf.taverna.t2.wps.wps_activity;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-
-import org.geotools.feature.FeatureCollection;
-import org.n52.wps.client.ExecuteResponseAnalyser;
-import org.n52.wps.client.WPSClientException;
-import org.n52.wps.client.WPSClientSession;
-import org.n52.wps.io.data.IData;
-import org.n52.wps.io.data.binding.complex.GTVectorDataBinding;
 
 import net.opengis.ows.x11.ExceptionReportDocument;
 import net.opengis.ows.x11.ExceptionReportDocument.ExceptionReport;
@@ -28,16 +20,25 @@ import net.sf.taverna.t2.reference.ReferenceService;
 import net.sf.taverna.t2.reference.T2Reference;
 import net.sf.taverna.t2.workflowmodel.processor.activity.AbstractAsynchronousActivity;
 import net.sf.taverna.t2.workflowmodel.processor.activity.ActivityConfigurationException;
-import net.sf.taverna.t2.workflowmodel.processor.activity.ActivityOutputPort;
 import net.sf.taverna.t2.workflowmodel.processor.activity.AsynchronousActivity;
 import net.sf.taverna.t2.workflowmodel.processor.activity.AsynchronousActivityCallback;
+
+import org.apache.log4j.Logger;
+import org.geotools.feature.FeatureCollection;
+import org.n52.wps.client.WPSClientException;
+import org.n52.wps.client.WPSClientSession;
+import org.n52.wps.io.data.IData;
+import org.n52.wps.io.data.binding.complex.GTVectorDataBinding;
 
 public class WPSActivity extends
 		AbstractAsynchronousActivity<WPSActivityConfigurationBean>
 		implements AsynchronousActivity<WPSActivityConfigurationBean> {
 
+	private static Logger logger = Logger.getLogger(WPSActivity.class);
 	
 	private WPSActivityConfigurationBean configBean;
+	
+	private ProcessDescriptionType processDescription;
 
 	@Override
 	public void configure(WPSActivityConfigurationBean configBean)
@@ -46,8 +47,40 @@ public class WPSActivity extends
 		// Store for getConfiguration(), but you could also make
 		// getConfiguration() return a new bean from other sources
 		this.configBean = configBean;
+		
+		removeInputs();
+		removeOutputs();
 
-		super.configurePorts(configBean);
+        WPSClientSession wpsClient = WPSClientSession.getInstance();
+        
+		try {
+			processDescription = wpsClient
+			                .getProcessDescription(configBean.getUri().toString(), configBean.getProcessId());
+		} catch (IOException e) {
+			logger.error("Unable to read processDescription", e);
+			throw new ActivityConfigurationException("Unable to read processDescription", e);
+		}
+		              
+        InputDescriptionType[] inputList = processDescription.getDataInputs()
+                        .getInputArray();
+                        
+        for (InputDescriptionType a : inputList) {
+        	int minOccurs = a.getMinOccurs().intValue();
+        	int maxOccurs = a.getMaxOccurs().intValue();
+			addInput(a.getIdentifier().getStringValue(),
+					(minOccurs == 0) || (maxOccurs > 1) ? 1 : 0,
+					true,
+					Collections.EMPTY_LIST,
+					String.class);
+        }
+		
+        OutputDescriptionType[] outputList = processDescription.getProcessOutputs().getOutputArray();
+        for (OutputDescriptionType output : outputList) {
+        	
+        	addOutput(output.getIdentifier().getStringValue(),
+        			0,
+        			0);
+        }
 	}
 
 	
@@ -65,15 +98,6 @@ public class WPSActivity extends
 						.getReferenceService();
 				
 		        WPSClientSession wpsClient = WPSClientSession.getInstance();
-				ProcessDescriptionType processDescription;
-				try {
-					processDescription = wpsClient
-					        .getProcessDescription(WPSActivity.this.configBean.getUri().toString(),
-					        		WPSActivity.this.configBean.getProcessId());
-				} catch (IOException e1) {
-					callback.fail("Unable to create client", e1);
-					return;
-				}
 				
 				org.n52.wps.client.ExecuteRequestBuilder executeBuilder = new org.n52.wps.client.ExecuteRequestBuilder(
                         processDescription);
@@ -91,10 +115,11 @@ public class WPSActivity extends
                 } else {
                 	inputValue = "missing";
                 }
-                if (input.getLiteralData() != null) {
+                String inputValueString = (String) inputValue;
+				if (input.getLiteralData() != null) {
                         if (inputValue instanceof String) {
                                 executeBuilder.addLiteralData(inputName,
-                                                (String) inputValue);
+                                                inputValueString);
                         }
                 } else if (input.getBoundingBoxData() != null) {
 // TODO what ?
@@ -120,7 +145,7 @@ public class WPSActivity extends
                                 executeBuilder
                                                 .addComplexDataReference(
                                                                 inputName,
-                                                                (String) inputValue,
+                                                                inputValueString,
                                                                 "http://schemas.opengis.net/gml/3.1.1/base/feature.xsd",
                                                                 null, "text/xml");
                         }
@@ -132,10 +157,7 @@ public class WPSActivity extends
                         }
                 }
         }
-//        executeBuilder.setMimeTypeForOutput("text/xml", "result");
-//        executeBuilder.setSchemaForOutput(
-//                        "http://schemas.opengis.net/gml/3.1.1/base/feature.xsd",
-//                        "result");
+
         ExecuteDocument execute = executeBuilder.getExecute();
         execute.getExecute().setService("WPS");
 
@@ -164,12 +186,13 @@ public class WPSActivity extends
     		             }
     				}
     				outputs.put(outputName,
-	                		referenceService.register("missing", 0, true, callback.getContext()));
+	                		referenceService.register("Placeholder" + response.toString(), 0, true, callback.getContext()));
     			}
     			callback.receiveResult(outputs, new int[0]);
         } else if (responseObject instanceof ExceptionReportDocument) {
         	ExceptionReportDocument response = (ExceptionReportDocument) responseObject;
         	ExceptionReport report = response.getExceptionReport();
+        	logger.error(report.toString());
         	callback.fail(report.toString());
         }
 

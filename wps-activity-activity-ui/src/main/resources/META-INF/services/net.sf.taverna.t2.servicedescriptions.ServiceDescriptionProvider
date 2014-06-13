@@ -1,1 +1,2 @@
 net.sf.taverna.t2.wps.wps_activity.ui.serviceprovider.WPSServiceProvider
+net.sf.taverna.t2.wadl.rest_activity.ui.serviceprovider.WadlServiceProvider

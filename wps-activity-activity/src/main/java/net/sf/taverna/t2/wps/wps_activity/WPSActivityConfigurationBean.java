@@ -41,22 +41,4 @@ public class WPSActivityConfigurationBean extends ActivityPortsDefinitionBean im
 	public final void setProcessId(String processId) {
 		this.processId = processId;
 	}
-	
-	public void setWPSInputPortDefinitions(
-			List<WPSActivityInputPortDefinitionBean> inputPortDefs) {
-		List<ActivityInputPortDefinitionBean> proxy = new ArrayList<ActivityInputPortDefinitionBean>();
-		for (ActivityInputPortDefinitionBean b : inputPortDefs) {
-			proxy.add(b);
-		}
-		super.setInputPortDefinitions(proxy);
-	}
-
-	public void setWPSOutputPortDefinitions(
-			List<WPSActivityOutputPortDefinitionBean> outputPortDefs) {
-		List<ActivityOutputPortDefinitionBean> proxy = new ArrayList<ActivityOutputPortDefinitionBean>();
-		for (ActivityOutputPortDefinitionBean b : outputPortDefs) {
-			proxy.add(b);
-		}
-		super.setOutputPortDefinitions(proxy);
-	}
 }

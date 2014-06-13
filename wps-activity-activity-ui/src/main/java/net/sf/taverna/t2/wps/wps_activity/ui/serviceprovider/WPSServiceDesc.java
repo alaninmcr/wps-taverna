@@ -1,6 +1,5 @@
 package net.sf.taverna.t2.wps.wps_activity.ui.serviceprovider;
 
-import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -9,18 +8,12 @@ import java.util.List;
 
 import javax.swing.Icon;
 
-import net.opengis.wps.x100.InputDescriptionType;
-import net.opengis.wps.x100.OutputDescriptionType;
-import net.opengis.wps.x100.ProcessDescriptionType;
 import net.sf.taverna.t2.servicedescriptions.ServiceDescription;
 import net.sf.taverna.t2.workflowmodel.processor.activity.Activity;
 import net.sf.taverna.t2.wps.wps_activity.WPSActivity;
 import net.sf.taverna.t2.wps.wps_activity.WPSActivityConfigurationBean;
-import net.sf.taverna.t2.wps.wps_activity.WPSActivityInputPortDefinitionBean;
-import net.sf.taverna.t2.wps.wps_activity.WPSActivityOutputPortDefinitionBean;
 
 import org.apache.log4j.Logger;
-import org.n52.wps.client.WPSClientSession;
 
 public class WPSServiceDesc extends ServiceDescription<WPSActivityConfigurationBean> {
 	
@@ -49,41 +42,7 @@ public class WPSServiceDesc extends ServiceDescription<WPSActivityConfigurationB
 		WPSActivityConfigurationBean bean = new WPSActivityConfigurationBean();
 		bean.setUri(this.getUri());
 		bean.setProcessId(this.getProcessId());
-        WPSClientSession wpsClient = WPSClientSession.getInstance();
-        
-        ProcessDescriptionType processDescription;
-		try {
-			processDescription = wpsClient
-			                .getProcessDescription(this.getUri().toString(), this.getProcessId());
-		} catch (IOException e) {
-			logger.error("Unable to read processDescription", e);
-			return null;
-		}
-		
-		List<WPSActivityInputPortDefinitionBean> inputPortDefs = new ArrayList<WPSActivityInputPortDefinitionBean>();                
-        InputDescriptionType[] inputList = processDescription.getDataInputs()
-                        .getInputArray();
-                        
-        for (InputDescriptionType a : inputList) {
-        	WPSActivityInputPortDefinitionBean newInput = 
-        			new WPSActivityInputPortDefinitionBean(a.getIdentifier().getStringValue(),
-        					a.getMinOccurs().intValue(), a.getMaxOccurs().intValue());
-
-            inputPortDefs.add(newInput);
-        }
-        bean.setWPSInputPortDefinitions(inputPortDefs);
-		
-        List<WPSActivityOutputPortDefinitionBean> outputPortDefs = new ArrayList<WPSActivityOutputPortDefinitionBean>();
-        OutputDescriptionType[] outputList = processDescription.getProcessOutputs().getOutputArray();
-        for (OutputDescriptionType output : outputList) {
-        	WPSActivityOutputPortDefinitionBean newOutput =
-        			new WPSActivityOutputPortDefinitionBean(output.getIdentifier().getStringValue());
-        	newOutput.setDepth(0);
-        	outputPortDefs.add(newOutput);
-        }
-        bean.setWPSOutputPortDefinitions(outputPortDefs);
-        
-		return bean;
+ 		return bean;
 	}
 
 	/**
@@ -163,7 +122,11 @@ public class WPSServiceDesc extends ServiceDescription<WPSActivityConfigurationB
 	
 	private List<String> getProcessPath() {
 		if (this.processId != null) {
-			return Arrays.asList(processId.substring(0, processId.lastIndexOf(".")).split("\\."));
+			if (processId.contains(".")) {
+				return Arrays.asList(processId.substring(0, processId.lastIndexOf(".")).split("\\."));
+			} else {
+				return Collections.singletonList(processId);
+			}
 		}
 		return Collections.emptyList();
 	}

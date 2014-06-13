@@ -78,10 +78,6 @@
 					<groupId>net.sf.taverna.t2.ui-activities</groupId>
 					<artifactId>spreadsheet-import-activity-ui</artifactId>
 				</exclusion>
-				<exclusion>
-					<groupId>net.sf.taverna.t2.ui-activities</groupId>
-					<artifactId>wsdl-activity-ui</artifactId>
-				</exclusion>
 
 				<!-- .. and the t2.activities counterparts -->
 				<exclusion>
@@ -112,10 +108,7 @@
 					<groupId>net.sf.taverna.t2.activities</groupId>
 					<artifactId>spreadsheet-import-activity</artifactId>
 				</exclusion>
-				<exclusion>
-					<groupId>net.sf.taverna.t2.activities</groupId>
-					<artifactId>wsdl-activity</artifactId>
-				</exclusion>
+
 				<!-- Perspectives pulling in too many dependencies -->
 				<exclusion>
 				 	<!--  fails due to direct dependency to WSDL -->
