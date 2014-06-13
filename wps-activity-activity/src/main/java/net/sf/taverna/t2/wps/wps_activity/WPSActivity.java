@@ -1,21 +1,33 @@
 package net.sf.taverna.t2.wps.wps_activity;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import net.opengis.ows.x11.ExceptionReportDocument;
 import net.opengis.ows.x11.ExceptionReportDocument.ExceptionReport;
+import net.opengis.ows.x11.ExceptionType;
+import net.opengis.wps.x100.ComplexDataType;
 import net.opengis.wps.x100.DataType;
+import net.opengis.wps.x100.DocumentOutputDefinitionType;
 import net.opengis.wps.x100.ExecuteDocument;
 import net.opengis.wps.x100.ExecuteResponseDocument;
 import net.opengis.wps.x100.InputDescriptionType;
 import net.opengis.wps.x100.LiteralDataType;
 import net.opengis.wps.x100.OutputDataType;
+import net.opengis.wps.x100.OutputDefinitionType;
 import net.opengis.wps.x100.OutputDescriptionType;
+import net.opengis.wps.x100.OutputReferenceType;
 import net.opengis.wps.x100.ProcessDescriptionType;
 import net.sf.taverna.t2.invocation.InvocationContext;
+import net.sf.taverna.t2.reference.ExternalReferenceSPI;
 import net.sf.taverna.t2.reference.ReferenceService;
 import net.sf.taverna.t2.reference.T2Reference;
 import net.sf.taverna.t2.workflowmodel.processor.activity.AbstractAsynchronousActivity;
@@ -23,12 +35,19 @@ import net.sf.taverna.t2.workflowmodel.processor.activity.ActivityConfigurationE
 import net.sf.taverna.t2.workflowmodel.processor.activity.AsynchronousActivity;
 import net.sf.taverna.t2.workflowmodel.processor.activity.AsynchronousActivityCallback;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.geotools.feature.FeatureCollection;
+import org.n52.wps.client.ExecuteResponseAnalyser;
+import org.n52.wps.client.StaticDataHandlerRepository;
 import org.n52.wps.client.WPSClientException;
 import org.n52.wps.client.WPSClientSession;
+import org.n52.wps.io.IParser;
 import org.n52.wps.io.data.IData;
 import org.n52.wps.io.data.binding.complex.GTVectorDataBinding;
+import org.n52.wps.io.data.binding.complex.GenericFileDataBinding;
+import org.n52.wps.io.datahandler.parser.GenericFileParser;
 
 public class WPSActivity extends
 		AbstractAsynchronousActivity<WPSActivityConfigurationBean>
@@ -172,10 +191,14 @@ public class WPSActivity extends
 		Map<String, T2Reference> outputs = new HashMap<String, T2Reference>();
         if (responseObject instanceof ExecuteResponseDocument) {
                 ExecuteResponseDocument response = (ExecuteResponseDocument) responseObject;
-    			OutputDataType[] processOutputs = response.getExecuteResponse().getProcessOutputs().getOutputArray();
+                
+                patchExecute(execute);
+
+                try {
+                	OutputDataType[] processOutputs = response.getExecuteResponse().getProcessOutputs().getOutputArray();
     			for(OutputDataType processOutput : processOutputs) {
     				String outputName = processOutput.getIdentifier().getStringValue();
-    				System.err.println(outputName);
+
     				if (processOutput.isSetData()) {
     					DataType dataType = processOutput.getData();
     					if (dataType.isSetLiteralData()) {
@@ -184,22 +207,116 @@ public class WPSActivity extends
     		                		referenceService.register(ldt.getStringValue(), 0, true, callback.getContext()));
     		                continue;
     		             }
+    					else if (dataType.isSetComplexData()) {
+    						IData d = extractData(response, outputName);
+    						Object o = d.getPayload();
+    		                outputs.put(outputName,
+    		                		referenceService.register(o.toString(), 0, true, callback.getContext()));
+    		                continue;
+    					}
     				}
     				outputs.put(outputName,
 	                		referenceService.register("Placeholder" + response.toString(), 0, true, callback.getContext()));
     			}
+				} catch (WPSClientException e) {
+					logger.error(e);
+					callback.fail(e.getMessage());
+				}
     			callback.receiveResult(outputs, new int[0]);
         } else if (responseObject instanceof ExceptionReportDocument) {
         	ExceptionReportDocument response = (ExceptionReportDocument) responseObject;
         	ExceptionReport report = response.getExceptionReport();
+        	ExceptionType[] exceptions = report.getExceptionArray();
+        	
+        	List<String> all_texts = new ArrayList<String>();
+        	for (ExceptionType ex : exceptions) {
+        		if (ex.getExceptionCode().equals("JAVA_StackTrace")) {
+        			continue;
+        		}
+        		String[] texts = ex.getExceptionTextArray();
+        		all_texts.addAll(Arrays.asList(texts));
+        	}
+        	String complete_text = StringUtils.join(all_texts, "\n");
         	logger.error(report.toString());
-        	callback.fail(report.toString());
+        	callback.fail(complete_text);
         }
 
 		
 			}
 		});
 	}
+	
+	private ExternalReferenceSPI extractDataReference (ExecuteResponseDocument responseDocument, String outputID) throws WPSClientException {
+	IParser parser = new GenericFileParser();
+	InputStream is = null;
+	String mimeType = null;
+	String encoding = null;
+	String schema = null;
+		OutputDataType[] processOutputs = responseDocument.getExecuteResponse().getProcessOutputs().getOutputArray();
+		for(OutputDataType processOutput : processOutputs){
+			if(processOutput.getIdentifier().getStringValue().equalsIgnoreCase(outputID)){
+				if(processOutput.isSetReference()){
+					//request the reference
+					OutputReferenceType reference = processOutput.getReference();
+					mimeType = reference.getMimeType();
+					encoding = reference.getEncoding();
+					schema = reference.getSchema();
+					String urlString = reference.getHref();
+					URL url;
+					try {
+						url = new URL(urlString);
+						is = url.openStream();
+					} catch (MalformedURLException e) {
+						throw new WPSClientException("Could not fetch response from referenced URL", e);
+					} catch (IOException e) {
+						throw new WPSClientException("Could not fetch response from referenced URL", e);
+					}
+					
+				}else{
+					ComplexDataType complexData = processOutput.getData().getComplexData();
+					mimeType = complexData.getMimeType();
+					encoding = complexData.getEncoding();
+					schema = complexData.getSchema();
+					is = complexData.newInputStream();
+				}
+				
+			}
+		}
+		
+		if (is == null) {
+			return null;
+		}
+		if("base64".equalsIgnoreCase(encoding) && "text/plain".equals(mimeType)){
+			String result = IOUtils.toString(is);
+			is.close();
+			return new 
+			return parser.parseBase64(is, mimeType, schema);
+		}else{
+			return parser.parse(is, mimeType, schema);
+		}
+	}
+	
+	protected void patchExecute(ExecuteDocument execute) {
+		String encoding;
+		if(execute.getExecute().isSetResponseForm() && execute.getExecute().getResponseForm().isSetRawDataOutput()){
+			// get data specification from request
+			OutputDefinitionType rawDataOutput = execute.getExecute().getResponseForm().getRawDataOutput();
+			encoding = rawDataOutput.getEncoding();
+			if (encoding == null) {
+				rawDataOutput.setEncoding("UTF-8");
+			}
+		}else if(execute.getExecute().isSetResponseForm() && execute.getExecute().getResponseForm().isSetResponseDocument()){
+			DocumentOutputDefinitionType[] outputs = execute.getExecute().getResponseForm().getResponseDocument().getOutputArray();
+			for(DocumentOutputDefinitionType output : outputs){
+					encoding = output.getEncoding();
+					if (encoding == null) {
+						output.setEncoding("UTF-8");
+					}
+			}
+			
+		}
+	}
+
 
 	@Override
 	public WPSActivityConfigurationBean getConfiguration() {
