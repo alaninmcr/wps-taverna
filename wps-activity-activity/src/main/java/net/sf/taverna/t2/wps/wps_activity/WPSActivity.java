@@ -11,6 +11,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.xml.bind.DatatypeConverter;
+
 import net.opengis.ows.x11.ExceptionReportDocument;
 import net.opengis.ows.x11.ExceptionReportDocument.ExceptionReport;
 import net.opengis.ows.x11.ExceptionType;
@@ -30,6 +32,9 @@ import net.sf.taverna.t2.invocation.InvocationContext;
 import net.sf.taverna.t2.reference.ExternalReferenceSPI;
 import net.sf.taverna.t2.reference.ReferenceService;
 import net.sf.taverna.t2.reference.T2Reference;
+import net.sf.taverna.t2.reference.impl.external.http.HttpReference;
+import net.sf.taverna.t2.reference.impl.external.object.InlineByteArrayReference;
+import net.sf.taverna.t2.reference.impl.external.object.InlineStringReference;
 import net.sf.taverna.t2.workflowmodel.processor.activity.AbstractAsynchronousActivity;
 import net.sf.taverna.t2.workflowmodel.processor.activity.ActivityConfigurationException;
 import net.sf.taverna.t2.workflowmodel.processor.activity.AsynchronousActivity;
@@ -208,11 +213,12 @@ public class WPSActivity extends
     		                continue;
     		             }
     					else if (dataType.isSetComplexData()) {
-    						IData d = extractData(response, outputName);
-    						Object o = d.getPayload();
-    		                outputs.put(outputName,
-    		                		referenceService.register(o.toString(), 0, true, callback.getContext()));
-    		                continue;
+    						ExternalReferenceSPI dRef = extractDataReference(response, outputName);
+    						if (dRef != null) {
+    							outputs.put(outputName,
+    		                		referenceService.register(dRef, 0, true, callback.getContext()));
+    							continue;
+    						}
     					}
     				}
     				outputs.put(outputName,
@@ -248,7 +254,6 @@ public class WPSActivity extends
 	
 	private ExternalReferenceSPI extractDataReference (ExecuteResponseDocument responseDocument, String outputID) throws WPSClientException {
 	IParser parser = new GenericFileParser();
-	InputStream is = null;
 	String mimeType = null;
 	String encoding = null;
 	String schema = null;
@@ -256,44 +261,57 @@ public class WPSActivity extends
 		for(OutputDataType processOutput : processOutputs){
 			if(processOutput.getIdentifier().getStringValue().equalsIgnoreCase(outputID)){
 				if(processOutput.isSetReference()){
-					//request the reference
 					OutputReferenceType reference = processOutput.getReference();
-					mimeType = reference.getMimeType();
-					encoding = reference.getEncoding();
-					schema = reference.getSchema();
-					String urlString = reference.getHref();
-					URL url;
+					HttpReference result = new HttpReference();
+					result.setHttpUrlString(reference.getHref());
+					return result;
+				} else {
 					try {
-						url = new URL(urlString);
-						is = url.openStream();
-					} catch (MalformedURLException e) {
-						throw new WPSClientException("Could not fetch response from referenced URL", e);
-					} catch (IOException e) {
-						throw new WPSClientException("Could not fetch response from referenced URL", e);
-					}
-					
-				}else{
-					ComplexDataType complexData = processOutput.getData().getComplexData();
+						ComplexDataType complexData = processOutput.getData().getComplexData();
 					mimeType = complexData.getMimeType();
 					encoding = complexData.getEncoding();
-					schema = complexData.getSchema();
-					is = complexData.newInputStream();
+					String toUseEncoding = "UTF-8";
+					if ((encoding != null) && !("base64".equals(encoding))) {
+						toUseEncoding = encoding;
+					}
+					ExternalReferenceSPI result = null;
+					String dataAsString;
+
+					// This part is total hackery
+					// TODO fix it
+					String cDataString = complexData.toString();
+					if (cDataString.contains("<xml-fragment")) {
+						dataAsString = cDataString.substring(cDataString.indexOf(">") + 1, cDataString.lastIndexOf("<"));
+					} else {
+						dataAsString = cDataString;
+					}
+
+					String convertedString = new String(dataAsString.getBytes(toUseEncoding), "UTF-8");
+
+					byte[] bytes;
+					if ("base64".equals("encoding")) {
+						bytes = DatatypeConverter.parseBase64Binary(convertedString);
+						convertedString = new String(bytes, "UTF-8");
+					} else {
+						bytes = convertedString.getBytes("UTF-8");
+					}
+
+					if (mimeType.contains("text")) {
+							result = new InlineStringReference();
+							((InlineStringReference) result).setContents(new String(bytes, "UTF-8"));
+					} else {
+						result = new InlineByteArrayReference();
+						((InlineByteArrayReference) result).setValue(bytes);
+					}
+					return result;
+					} catch (IOException e) {
+						throw new WPSClientException("Unable to convert result");
+					}
 				}
 				
 			}
 		}
-		
-		if (is == null) {
-			return null;
-		}
-		if("base64".equalsIgnoreCase(encoding) && "text/plain".equals(mimeType)){
-			String result = IOUtils.toString(is);
-			is.close();
-			return new 
-			return parser.parseBase64(is, mimeType, schema);
-		}else{
-			return parser.parse(is, mimeType, schema);
-		}
+		return null;
 	}
 	
 	protected void patchExecute(ExecuteDocument execute) {
